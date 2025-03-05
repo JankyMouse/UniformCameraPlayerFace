@@ -3,20 +3,20 @@ Imported.JM_UniformCameraPlayerFace = true;
 
 var JM = JM || {};
 JM.UniformCameraPlayerFace = JM.UniformCameraPlayerFace || {};
-JM.UniformCameraPlayerFace.Version = 0.7;
+JM.UniformCameraPlayerFace.Version = 0.9;
 /*:
 
 *@author JankyMouse
 *@plugindesc Patches MV3D for uniform camera and player facing.
 *@param options
 *@text Settings
-*@param BlendTime
-*@text Blend Time
-*@desc The blend time it takes models to complete a rotation.
+*@param autoRotSpeed
+*@text Rotation Speed
+*@desc The amount characters rotate in 1 second in degrees.
 *@parent options
 *@type Number
 *@decimals 2
-*@min 0 @max 0.5
+*@min 1 @max 360
 *@default 0.1
 */
   //"use strict";
@@ -25,9 +25,11 @@ var JM_UniformCameraPlayerFace = JM.UniformCameraPlayerFace;
 JM_UniformCameraPlayerFace.params = PluginManager.parameters("UniformCameraPlayerFace");
 
 JM_UniformCameraPlayerFace.params = {
-  BlendTime: Number(JM_UniformCameraPlayerFace.params['BlendTime'])
+  autoRotSpeed: Number(JM_UniformCameraPlayerFace.params['autoRotSpeed'])
 };
 
+//--------------------------------------------------------------------------------------------
+// mv3d defined @ln 3426
 
 const mv3d_getDirection = mv3d.Character.prototype.getDirection;
 mv3d.Character.prototype.getDirection = function(){
@@ -82,35 +84,37 @@ mv3d.Character.prototype.getDirection = function(){
         return mv3d_getDirection.call(this);
   }
 };
-  
-  const mv3d_updateDirection = mv3d.Character.prototype.updateDirection;
-  mv3d.Character.prototype.updateDirection = function(){
+
+//---------------------------------------------------------------------------------------------
+// mv3d defined @ln 3433
+
+mv3d.Character.prototype.updateDirection = function(){
      
-      this.direction = this.getDirection();
-      
-      const turnSpeed = this.getConfig('autoRotSpeed', 360);
+  this.direction = this.getDirection();
   
-      if (this.getConfig('autoRot', this.isComplex)) {
-        const needsInitialize = !this.blendDirection;
-        if (needsInitialize) {
-          this.blendDirection = this.makeBlender('direction', this.direction);
-          this.blendDirection.cycle = 360;
-        }
-        if (this.direction !== this.blendDirection.targetValue()) {
-          const blendTime = JM_UniformCameraPlayerFace.params['BlendTime'];
-          this.blendDirection.setValue(this.direction, blendTime);
-        }
-        if (this.blendDirection.update() || this.needsPositionUpdate || needsInitialize) {
-          this.model.yaw = this.blendDirection.currentValue() + this.getConfig('yaw', 0);
-          this.model.rotNode.yaw = this.getConfig('rot', 0);
-        }
-      }
-      if (this.getConfig('autoPitch')) {
-        if (!this.blendPitch) {
-          this.blendPitch = this.makeBlender('pitch', 90);
-        }
+  const turnSpeed = JM_UniformCameraPlayerFace.params['autoRotSpeed'];
   
-      }
-      //mv3d_updateDirection.call(this);
-  
+  if (this.getConfig('autoRot', this.isComplex)) {
+    const needsInitialize = !this.blendDirection;
+    if (needsInitialize) {
+      this.blendDirection = this.makeBlender('direction', this.direction);
+      this.blendDirection.cycle = 360;
     }
+    if (this.direction !== this.blendDirection.targetValue()) {
+      const blendTime = Math.abs((0,mv3d.util.degDiff)(this.direction, this.blendDirection.currentValue()) / turnSpeed)
+      this.blendDirection.setValue(this.direction, blendTime);
+      //console.log(blendTime)
+    }
+    if (this.blendDirection.update() || this.needsPositionUpdate || needsInitialize) {
+      this.model.yaw = this.blendDirection.currentValue() + this.getConfig('yaw', 0);
+      this.model.rotNode.yaw = this.getConfig('rot', 0);
+    }
+  }
+  if (this.getConfig('autoPitch')) {
+    if (!this.blendPitch) {
+      this.blendPitch = this.makeBlender('pitch', 90);
+    }
+    // TODO: calculate proper pitch based on slope
+  }
+      //mv3d_updateDirection.call(this);
+};
